@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yellow Track - กรีฑาสีเหลือง</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f4f4f5;
+            color: #111827;
+        }
+        /* ซ่อน Scrollbar ทั่วไปแต่ยัง Scroll ได้ */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="pb-20 selection:bg-yellow-300">
+
+    <!-- Header -->
+    <header class="fixed top-0 left-0 w-full z-40 bg-yellow-400 border-b-4 border-black shadow-[0px_4px_0px_0px_rgba(0,0,0,1)]">
+        <div class="flex justify-between items-center p-4 max-w-md mx-auto">
+            <button onclick="toggleMenu()" class="p-2 border-2 border-black bg-white hover:bg-yellow-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-transform active:scale-95">
+                <i data-lucide="menu" class="w-6 h-6 text-black"></i>
+            </button>
+            <h1 class="text-2xl font-black tracking-wider uppercase text-black" style="font-family: 'Courier New', Courier, monospace; text-shadow: 2px 2px 0px #FFF;">
+                YELLOW TRACK
+            </h1>
+            <div class="w-10"></div> <!-- Spacer -->
+        </div>
+    </header>
+
+    <!-- Sidebar Overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 z-50 opacity-0 pointer-events-none transition-opacity duration-300" onclick="toggleMenu()">
+        <!-- Sidebar Content -->
+        <div id="sidebar-content" class="absolute top-0 left-0 w-3/4 max-w-sm h-full bg-yellow-400 border-r-4 border-black transform -translate-x-full transition-transform duration-300 ease-in-out" onclick="event.stopPropagation()">
+            <div class="p-4 border-b-4 border-black flex justify-between items-center bg-white">
+                <h2 class="font-black text-xl">เมนูหลัก</h2>
+                <button onclick="toggleMenu()" class="p-1 hover:bg-gray-200 rounded border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                    <i data-lucide="x" class="w-5 h-5 text-black"></i>
+                </button>
+            </div>
+            <nav class="p-4 flex flex-col gap-4 mt-4" id="nav-menu">
+                <!-- Navigation Buttons will be injected here -->
+            </nav>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="max-w-md mx-auto pt-24 px-4" id="main-content">
+        <!-- Loading State จะแสดงตรงนี้ก่อนดึงข้อมูลเสร็จ -->
+        <div class="flex flex-col items-center justify-center h-[50vh]">
+            <i data-lucide="loader" class="w-10 h-10 animate-spin mb-4 text-yellow-500"></i>
+            <p class="font-bold text-lg animate-pulse">กำลังซิงค์ข้อมูลจากแบบฟอร์ม...</p>
+        </div>
+    </main>
+
+    <script>
+        // --- ข้อมูลแกนนำ (ยังคงเป็นข้อมูลคงที่) ---
+        const leaders = [
+            { id: 1, name: 'พี่สตางค์', fullname: 'นายธนวิชญ์ กองนิล', grade: 'ม.6/3', role: 'หัวหน้าคุมกรีฑาม.ต้น', contact: 'IG: protangsawaddee', img: 'https://i.postimg.cc/8CQC7FDH/24863.jpg' },
+            { id: 2, name: 'พี่ก้านพูล', fullname: 'นายพัฒธิวัฒน์ สุขนวล', grade: 'ม.6/7', role: 'รองหัวหน้าคุมกรีฑาม.ต้น', contact: 'IG: pxtiwqtp_.16', img: 'https://i.postimg.cc/wMLz82yn/24864.jpg' },
+            { id: 3, name: 'พี่ซีซ่า', fullname: 'นายปุญญพัฒน์ นำหน้า', grade: 'ม.6/3', role: 'สวัสดิการ (ลิ่วล้อ)', contact: 'IG: zzapunyaphat', img: 'https://i.postimg.cc/4xBggmy7/24866.jpg' },
+        ];
+
+        // --- เตรียมตัวแปรสำหรับเก็บข้อมูลจาก Google Sheets ---
+        let members = [];
+        let eventData = {}; 
+        
+        // ลิงก์ดึงข้อมูล CSV ของคุณที่แปลงมาแล้ว
+        const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRD62YfgQ97itiaoCuHGwY-JwtkRP3U6FQXCiPGxHxEfpmQ1XAaFs12bAOEmsONsoKW88f150m7TyeO/pub?output=csv&gid=170326434";
+
+        const navItems = [
+            { id: 'home', label: 'หน้าแรก', icon: 'users' },
+            { id: 'dashboard', label: 'แดชบอร์ด', icon: 'activity' },
+            { id: 'leaderboard', label: 'ตารางอันดับ', icon: 'trophy' },
+            { id: 'events', label: 'รายการแข่งขัน', icon: 'calendar' },
+            { id: 'profile', label: 'โปรไฟล์', icon: 'alert-circle' },
+        ];
+
+        // --- STATE ---
+        let activeTab = 'home';
+        let isMenuOpen = false;
+        let selectedEvent = '';
+
+        // --- ฟังก์ชันดึงข้อมูลและจัดการลิงก์รูป ---
+        function convertDriveLink(url) {
+            if (!url) return 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Yellow';
+            // หา ID รูปจาก Google Drive
+            const match = url.match(/id=([^&]+)/) || url.match(/\/d\/([^/]+)/);
+            if (match && match[1]) {
+                return `https://lh3.googleusercontent.com/d/${match[1]}`;
+            }
+            return url;
+        }
+
+        async function loadAthletesData() {
+            try {
+                const response = await fetch(SHEET_CSV_URL);
+                const dataText = await response.text();
+                
+                // แยกข้อมูลทีละบรรทัด (ข้ามบรรทัดแรกที่เป็นหัวตาราง)
+                const lines = dataText.split('\n');
+                members = [];
+                eventData = {};
+
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    
+                    // แยกคอลัมน์ด้วยเครื่องหมายจุลภาค (,)
+                    const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').trim());
+                    
+                    if (row.length >= 7) {
+                        const evtName = row[6] || "-";
+                        const newMember = {
+                            id: 100 + i,
+                            fullname: row[1],
+                            name: row[2] || row[1].split(' ')[0], // ถ้าไม่มีชื่อเล่น เอาชื่อจริงคำแรก
+                            grade: row[5].includes("ม.") ? row[5] : "ม." + row[5],
+                            event: evtName,
+                            img: convertDriveLink(row[7]),
+                            // ข้อมูลสถิติจำลองไปก่อน จนกว่าจะมีการเก็บข้อมูลซ้อมจริง
+                            streak: Math.floor(Math.random() * 30), 
+                            distance: parseFloat((Math.random() * 50).toFixed(1)),
+                            last5: ['Y', 'Y', '-', 'Y', 'Y']
+                        };
+                        members.push(newMember);
+
+                        // จัดกลุ่มนักกีฬาตามรายการแข่งขันอัตโนมัติ
+                        if (!eventData[evtName]) eventData[evtName] = [];
+                        eventData[evtName].push({
+                            name: newMember.name,
+                            time: (12 + Math.random() * 3).toFixed(1), // เวลากระโดดจำลอง
+                            practiceCount: newMember.streak,
+                            history: [13.2, 12.8, 12.5, 12.3, 12.1] // กราฟจำลอง
+                        });
+                    }
+                }
+                
+                // ตั้งค่าเริ่มต้นของ Dashboard เป็นรายการแข่งขันแรกที่เจอใน Sheet
+                if (Object.keys(eventData).length > 0) {
+                    selectedEvent = Object.keys(eventData)[0];
+                }
+
+                // สั่งโหลด UI ใหม่หลังจากได้ข้อมูลครบ
+                safeRenderApp();
+
+            } catch (error) {
+                console.error("Failed to load Google Sheet data:", error);
+                document.getElementById('main-content').innerHTML = `
+                    <div class="text-center text-red-500 mt-10">
+                        <i data-lucide="alert-triangle" class="w-12 h-12 mx-auto mb-2"></i>
+                        <p class="font-bold">โหลดข้อมูลจากฟอร์มไม่สำเร็จ</p>
+                        <p class="text-sm">โปรดตรวจสอบลิงก์ Google Sheets อีกครั้ง</p>
+                    </div>`;
+                if(window.lucide) lucide.createIcons();
+            }
+        }
+
+        // --- CORE LOGIC ---
+        function toggleMenu() {
+            isMenuOpen = !isMenuOpen;
+            const overlay = document.getElementById('sidebar-overlay');
+            const content = document.getElementById('sidebar-content');
+            
+            if (isMenuOpen) {
+                overlay.classList.remove('opacity-0', 'pointer-events-none');
+                overlay.classList.add('opacity-100');
+                content.classList.remove('-translate-x-full');
+                content.classList.add('translate-x-0');
+            } else {
+                overlay.classList.add('opacity-0', 'pointer-events-none');
+                overlay.classList.remove('opacity-100');
+                content.classList.add('-translate-x-full');
+                content.classList.remove('translate-x-0');
+            }
+        }
+
+        function navigate(tab) {
+            activeTab = tab;
+            toggleMenu();
+            renderNav();
+            safeRenderApp();
+        }
+
+        function setEvent(eventName) {
+            selectedEvent = eventName;
+            safeRenderApp();
+        }
+
+        function renderNav() {
+            const navMenu = document.getElementById('nav-menu');
+            navMenu.innerHTML = navItems.map(item => `
+                <button
+                    onclick="navigate('${item.id}')"
+                    class="flex items-center gap-3 p-3 border-4 border-black font-bold text-lg text-left shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all ${activeTab === item.id ? 'bg-black text-yellow-400' : 'bg-white text-black hover:bg-yellow-200 hover:-translate-y-1'}"
+                >
+                    <i data-lucide="${item.icon}" class="w-5 h-5"></i>
+                    ${item.label}
+                </button>
+            `).join('');
+        }
+
+        // ฟังก์ชันครอบสำหรับป้องกันจอขาว (White Screen)
+        function safeRenderApp() {
+            try {
+                const mainContent = document.getElementById('main-content');
+                let contentHtml = '';
+
+                if (activeTab === 'home') contentHtml = renderHome();
+                else if (activeTab === 'dashboard') contentHtml = renderDashboard();
+                else if (activeTab === 'leaderboard') contentHtml = renderLeaderboard();
+                else if (activeTab === 'events') contentHtml = renderEvents();
+                else if (activeTab === 'profile') contentHtml = renderProfile();
+
+                mainContent.innerHTML = contentHtml;
+                
+                // สร้างไอคอนหลังจากวาด HTML เสร็จ
+                if (window.lucide) {
+                    lucide.createIcons();
+                }
+            } catch (err) {
+                console.error("Render Error: ", err);
+                document.getElementById('main-content').innerHTML = `<div class="p-4 bg-red-100 text-red-600 border border-red-500 rounded">เกิดข้อผิดพลาดในการแสดงผล: ${err.message}</div>`;
+            }
+        }
+
+        // --- RENDER VIEWS ---
+        function renderHome() {
+            let leadersHtml = leaders.map((leader, idx) => `
+                <div class="border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-4 ${idx === 0 ? 'bg-yellow-100' : 'bg-white'}">
+                    <div class="flex gap-4 items-start">
+                        <div class="w-24 h-28 shrink-0 border-4 border-black bg-yellow-300 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex items-center justify-center">
+                            <img src="${leader.img}" alt="${leader.name}" class="w-full h-full object-cover object-top" />
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-black text-xl mb-1 text-black">${leader.name} <span class="text-sm font-normal text-gray-600">(${leader.grade})</span></h3>
+                            <p class="text-[11px] font-bold bg-black text-white px-2 py-1 inline-block mb-2">${leader.role}</p>
+                            <p class="text-sm text-gray-700 font-medium mb-1">${leader.fullname}</p>
+                            <div class="flex items-center gap-1 text-xs font-bold text-blue-600 mt-2">
+                                <i data-lucide="${leader.contact.includes('IG') ? 'instagram' : 'facebook'}" class="w-3.5 h-3.5"></i>
+                                ${leader.contact}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // แสดงข้อความถ้าน้องๆ ยังไม่มีในระบบ
+            if (members.length === 0) {
+                return `
+                <div class="space-y-8 animate-in fade-in duration-300">
+                    <section>
+                        <div class="inline-block bg-black text-yellow-400 px-4 py-2 border-4 border-black mb-4 font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(255,255,255,1)]">
+                            ★ แกนนำสีเหลือง (ม.6)
+                        </div>
+                        <div class="flex flex-col gap-6 mt-2">${leadersHtml}</div>
+                    </section>
+                    <section class="text-center py-10">
+                         <p class="text-gray-500 font-bold">ยังไม่มีรายชื่อน้องๆ จากแบบฟอร์ม</p>
+                    </section>
+                </div>`;
+            }
+
+            let membersHtml = members.map(member => {
+                let formGuide = member.last5.map(status => {
+                    let classes = status === 'Y' ? 'bg-green-500 border-green-700' : status === 'N' ? 'bg-red-500 border-red-700' : 'bg-gray-300 border-gray-400 text-gray-600';
+                    let icon = status === 'Y' ? '✓' : status === 'N' ? '✗' : '-';
+                    return `<div class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,0.5)] border border-solid ${classes}">${icon}</div>`;
+                }).join('');
+
+                return `
+                <div class="flex flex-col p-3 border-4 border-black bg-white shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 border-2 border-black bg-gray-100 overflow-hidden shrink-0">
+                                <img src="${member.img}" alt="${member.name}" class="w-full h-full object-cover" />
+                            </div>
+                            <div>
+                                <p class="font-bold text-lg leading-tight">${member.name}</p>
+                                <p class="text-xs font-medium text-gray-500">${member.grade} • ${member.event}</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <div class="flex items-center gap-1 bg-red-100 border-2 border-red-500 px-2 py-1 rounded-full">
+                                <i data-lucide="flame" class="w-3.5 h-3.5 text-red-500 fill-current"></i>
+                                <span class="font-black text-red-600 text-sm">${member.streak}</span>
+                            </div>
+                            <p class="text-xs font-black bg-yellow-300 px-1 border border-black" style="font-family: 'Courier New', Courier, monospace">${member.distance} km</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 flex items-center justify-between border-t-2 border-gray-100 pt-2">
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">เข้าซ้อม 5 วันล่าสุด</span>
+                        <div class="flex gap-1.5">${formGuide}</div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="space-y-8 animate-in fade-in duration-300">
+                    <section>
+                        <div class="inline-block bg-black text-yellow-400 px-4 py-2 border-4 border-black mb-4 font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(255,255,255,1)]">
+                            ★ แกนนำสีเหลือง (ม.6)
+                        </div>
+                        <div class="flex flex-col gap-6 mt-2">${leadersHtml}</div>
+                    </section>
+                    <section>
+                        <div class="inline-block bg-white text-black px-4 py-2 border-4 border-black mb-4 font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                            นักกีฬาดาวรุ่ง จากฟอร์มสมัคร
+                        </div>
+                        <div class="grid grid-cols-1 gap-4">${membersHtml}</div>
+                    </section>
+                </div>
+            `;
+        }
+
+        function renderDashboard() {
+            if (!selectedEvent || !eventData[selectedEvent]) return `<div class="text-center py-10 font-bold text-gray-500">กำลังประมวลผลข้อมูลการแข่งขัน...</div>`;
+
+            const isRelay = selectedEvent.includes('4*') || selectedEvent.includes('4x');
+            const starterLimit = isRelay ? 4 : 2;
+            const currentData = [...eventData[selectedEvent]].sort((a, b) => a.time - b.time);
+
+            let eventButtons = Object.keys(eventData).map(event => `
+                <button
+                    onclick="setEvent('${event}')"
+                    class="whitespace-nowrap px-4 py-2 border-4 border-black font-bold shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-colors ${selectedEvent === event ? 'bg-black text-yellow-400' : 'bg-white text-black'}"
+                >
+                    ${event}
+                </button>
+            `).join('');
+
+            let runnersHtml = currentData.map((runner, index) => {
+                const isStarter = index < starterLimit;
+                
+                // SVG Graph calculation
+                const data = runner.history;
+                const min = Math.min(...data) - 0.2; 
+                const max = Math.max(...data) + 0.2;
+                const range = max - min;
+                
+                let points = data.map((val, i) => {
+                    const x = (i / (data.length - 1)) * 100;
+                    const y = ((val - min) / range) * 40;
+                    return `${x},${y}`;
+                }).join(' ');
+
+                let circles = data.map((val, i) => {
+                    const x = (i / (data.length - 1)) * 100;
+                    const y = ((val - min) / range) * 40;
+                    return `<circle cx="${x}" cy="${y}" r="3" fill="#fff" stroke="${isStarter ? '#000' : '#666'}" stroke-width="2" />`;
+                }).join('');
+
+                return `
+                <div class="border-4 ${isStarter ? 'border-yellow-500' : 'border-gray-400 opacity-90'} bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+                    <div class="p-3 flex justify-between items-center border-b-2 border-black ${isStarter ? 'bg-yellow-100' : 'bg-gray-100'}">
+                        <div class="flex items-center gap-3">
+                            <span class="font-black w-6 text-center text-lg ${isStarter ? 'text-yellow-600' : 'text-gray-500'}">#${index + 1}</span>
+                            <div>
+                                <p class="font-bold text-lg">${runner.name}</p>
+                                <p class="text-xs text-gray-600 font-medium">สถิติล่าสุด: <span class="font-black text-black">${runner.time}s</span></p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            ${isStarter ? 
+                                `<span class="text-[10px] bg-green-500 text-white px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-bold uppercase tracking-wider border-2 border-black">ตัวจริง</span>` : 
+                                `<span class="text-[10px] bg-gray-400 text-white px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-bold uppercase tracking-wider border-2 border-black">สำรอง</span>`
+                            }
+                        </div>
+                    </div>
+                    
+                    <div class="p-3 bg-white flex items-center justify-between gap-4">
+                        <div class="flex-1">
+                            <p class="text-[10px] font-bold text-gray-500 mb-1">กราฟสถิติ 5 ครั้งล่าสุด (ยิ่งสูงยิ่งเร็ว)</p>
+                            <div class="relative w-full h-12 border-l-2 border-b-2 border-gray-300 pt-1 pr-1">
+                                <svg viewBox="0 -5 100 50" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                    <polyline fill="none" stroke="${isStarter ? '#eab308' : '#9ca3af'}" stroke-width="3" points="${points}"></polyline>
+                                    ${circles}
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <p class="text-[10px] text-gray-500 font-bold uppercase">เข้าซ้อม</p>
+                            <p class="font-black text-xl">${runner.practiceCount} <span class="text-xs font-normal">ครั้ง</span></p>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="space-y-6">
+                    <div>
+                        <h2 class="font-black text-xl mb-3 flex items-center gap-2">
+                            <i data-lucide="medal" class="w-6 h-6 text-yellow-600"></i> คัดตัวจากฟอร์ม (${selectedEvent})
+                        </h2>
+                        <div class="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
+                            ${eventButtons}
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        ${runnersHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderLeaderboard() {
+            if (members.length === 0) return `<div class="text-center py-10 font-bold">ยังไม่มีข้อมูลนักกีฬา</div>`;
+
+            const sortedMembers = [...members].sort((a, b) => b.distance - a.distance);
+            
+            let htmlList = sortedMembers.map((member, index) => {
+                let bgClass = "bg-white";
+                let rankColor = "text-gray-500";
+                if (index === 0) { bgClass = "bg-yellow-100 border-yellow-500"; rankColor = "text-yellow-600"; }
+                else if (index === 1) { bgClass = "bg-gray-100 border-gray-400"; rankColor = "text-gray-500"; }
+                else if (index === 2) { bgClass = "bg-orange-50 border-orange-400"; rankColor = "text-orange-600"; }
+
+                return `
+                <div class="flex items-center gap-4 p-3 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${bgClass}">
+                    <div class="w-8 h-8 flex items-center justify-center font-black text-xl ${rankColor}">
+                        #${index + 1}
+                    </div>
+                    <div class="w-12 h-12 border-2 border-black bg-white overflow-hidden shrink-0">
+                        <img src="${member.img}" alt="${member.name}" class="w-full h-full object-cover" />
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="font-bold text-lg leading-tight">${member.name}</h3>
+                        <span class="text-xs bg-gray-200 px-1 rounded text-gray-600">${member.grade}</span>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-black text-xl text-black" style="font-family: 'Courier New', Courier, monospace">
+                            ${member.distance}<span class="text-sm font-bold text-gray-600 ml-1">km</span>
+                        </p>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="space-y-4">
+                    <div class="bg-black text-white p-4 border-4 border-black text-center shadow-[6px_6px_0px_0px_rgba(253,224,71,1)]">
+                        <i data-lucide="trophy" class="w-10 h-10 mx-auto text-yellow-400 mb-2"></i>
+                        <h2 class="font-black text-2xl uppercase tracking-widest">Leaderboard</h2>
+                        <p class="text-sm text-yellow-200">อันดับนักวิ่งจอมอึด (ระยะทางรวม)</p>
+                    </div>
+                    <div class="flex flex-col gap-3 mt-6">
+                        ${htmlList}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderEvents() {
+            if (Object.keys(eventData).length === 0) return `<div class="text-center py-10 font-bold">ยังไม่มีข้อมูลรายการแข่งขัน</div>`;
+
+            let eventsHtml = Object.keys(eventData).map(eventName => {
+                const isRelay = eventName.includes('4*') || eventName.includes('4x');
+                const starterLimit = isRelay ? 4 : 2;
+                const starters = [...eventData[eventName]].sort((a, b) => a.time - b.time).slice(0, starterLimit);
+
+                let runnersCards = starters.map((runner) => `
+                    <div class="bg-white border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center text-center">
+                        <div class="w-10 h-10 border border-black bg-gray-100 rounded-full mb-2 overflow-hidden flex items-center justify-center">
+                            <i data-lucide="user" class="text-gray-400 w-6 h-6"></i>
+                        </div>
+                        <p class="font-bold">${runner.name}</p>
+                        <p class="text-[10px] text-gray-500 font-mono">${runner.time}s</p>
+                    </div>
+                `).join('');
+
+                return `
+                <div class="border-4 border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-0 overflow-hidden">
+                    <div class="bg-black text-white p-3 flex justify-between items-center">
+                        <h3 class="font-bold text-lg">${eventName}</h3>
+                        <span class="text-xs bg-yellow-400 text-black px-2 py-1 font-bold">โควต้า: ${starterLimit} คน</span>
+                    </div>
+                    <div class="p-4 grid grid-cols-2 gap-3 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
+                        ${runnersCards}
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="space-y-6">
+                    <div class="bg-yellow-400 p-4 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+                        <h2 class="font-black text-xl text-center uppercase tracking-wider">รายการแข่งขัน</h2>
+                        <p class="text-center text-sm font-medium mt-1">รายชื่อเฉพาะ "ตัวจริง" ในแต่ละรายการ</p>
+                    </div>
+                    ${eventsHtml}
+                </div>
+            `;
+        }
+
+        function renderProfile() {
+            return `
+                <div class="h-[60vh] flex flex-col items-center justify-center text-center">
+                    <div class="animate-bounce">
+                        <i data-lucide="alert-circle" class="w-16 h-16 text-yellow-500 mb-4 mx-auto"></i>
+                    </div>
+                    <h2 class="text-2xl font-black mb-2">COMING SOON</h2>
+                    <p class="text-gray-600 font-medium">ระบบโปรไฟล์กำลังอยู่ในช่วงการพัฒนา<br/>รอกันอีกนิดนะวัยรุ่น!</p>
+                    <button onclick="navigate('home')" class="mt-8 px-6 py-2 bg-black text-white font-bold border-4 border-black shadow-[4px_4px_0px_0px_rgba(253,224,71,1)] hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all">
+                        กลับหน้าแรก
+                    </button>
+                </div>
+            `;
+        }
+
+        // --- ทำงานเมื่อโหลดสคริปต์เสร็จ ---
+        renderNav();
+        if (window.lucide) lucide.createIcons(); // โหลดไอคอนเมนูด้านข้างและหน้าโหลด
+        
+        // เริ่มดึงข้อมูลจาก Google Sheets ทันที
+        loadAthletesData();
+
+    </script>
+</body>
+</html>
