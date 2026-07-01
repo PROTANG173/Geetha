@@ -58,29 +58,29 @@
         </div>
     </div>
 
-    <!-- Main Content Area -->
     <main class="max-w-md mx-auto pt-24 px-4" id="main-content">
         <!-- Loading State จะแสดงตรงนี้ก่อนดึงข้อมูลเสร็จ -->
         <div class="flex flex-col items-center justify-center h-[50vh]">
             <i data-lucide="loader" class="w-10 h-10 animate-spin mb-4 text-yellow-500"></i>
-            <p class="font-bold text-lg animate-pulse">กำลังซิงค์ข้อมูลจากแบบฟอร์ม...</p>
+            <p class="font-bold text-lg animate-pulse">กำลังซิงค์ข้อมูลระยะทางวิ่ง...</p>
         </div>
     </main>
 
     <script>
-        // --- ข้อมูลแกนนำ (ยังคงเป็นข้อมูลคงที่) ---
+        // --- ข้อมูลแกนนำ (ยังคงเป็นข้อมูลคงที่ 3 คน) ---
         const leaders = [
             { id: 1, name: 'พี่สตางค์', fullname: 'นายธนวิชญ์ กองนิล', grade: 'ม.6/3', role: 'หัวหน้าคุมกรีฑาม.ต้น', contact: 'IG: protangsawaddee', img: 'https://i.postimg.cc/8CQC7FDH/24863.jpg' },
             { id: 2, name: 'พี่ก้านพูล', fullname: 'นายพัฒธิวัฒน์ สุขนวล', grade: 'ม.6/7', role: 'รองหัวหน้าคุมกรีฑาม.ต้น', contact: 'IG: pxtiwqtp_.16', img: 'https://i.postimg.cc/wMLz82yn/24864.jpg' },
             { id: 3, name: 'พี่ซีซ่า', fullname: 'นายปุญญพัฒน์ นำหน้า', grade: 'ม.6/3', role: 'สวัสดิการ (ลิ่วล้อ)', contact: 'IG: zzapunyaphat', img: 'https://i.postimg.cc/4xBggmy7/24866.jpg' },
         ];
 
-        // --- เตรียมตัวแปรสำหรับเก็บข้อมูลจาก Google Sheets ---
         let members = [];
         let eventData = {}; 
         
-        // ลิงก์ดึงข้อมูล CSV ของคุณที่แปลงมาแล้ว
-        const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRD62YfgQ97itiaoCuHGwY-JwtkRP3U6FQXCiPGxHxEfpmQ1XAaFs12bAOEmsONsoKW88f150m7TyeO/pub?output=csv&gid=170326434";
+        // ลิงก์ดึงข้อมูล 1: แบบฟอร์มลงทะเบียน (ชื่อ, รหัส, รายการ)
+        const REG_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRD62YfgQ97itiaoCuHGwY-JwtkRP3U6FQXCiPGxHxEfpmQ1XAaFs12bAOEmsONsoKW88f150m7TyeO/pub?output=csv&gid=170326434";
+        // ลิงก์ดึงข้อมูล 2: แบบฟอร์มเก็บระยะทางวิ่ง
+        const LOG_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRL84Ewdp36UzuqhNXKJiF8HoDYXP0RZ9IYFx4RCx6AyIAmHbqkZwTgz5HTqO1Pkq7GrL8Q319yyuu7/pub?output=csv";
 
         const navItems = [
             { id: 'home', label: 'หน้าแรก', icon: 'users' },
@@ -90,72 +90,123 @@
             { id: 'profile', label: 'โปรไฟล์', icon: 'alert-circle' },
         ];
 
-        // --- STATE ---
         let activeTab = 'home';
         let isMenuOpen = false;
         let selectedEvent = '';
 
-        // --- ฟังก์ชันดึงข้อมูลและจัดการลิงก์รูป ---
         function convertDriveLink(url) {
             if (!url) return 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Yellow';
-            // หา ID รูปจาก Google Drive
             const match = url.match(/id=([^&]+)/) || url.match(/\/d\/([^/]+)/);
-            if (match && match[1]) {
-                return `https://lh3.googleusercontent.com/d/${match[1]}`;
-            }
+            if (match && match[1]) return `https://lh3.googleusercontent.com/d/${match[1]}`;
             return url;
+        }
+
+        // ตัวช่วยแปลงวันที่สำหรับนำไปจัดเรียง
+        function parseDateString(ds) {
+            if(!ds) return 0;
+            if(ds.includes('/')) {
+                const p = ds.split('/'); // แปลง DD/MM/YYYY เป็น timestamp
+                if(p.length === 3) return new Date(`${p[2]}-${p[1]}-${p[0]}`).getTime();
+            }
+            return new Date(ds).getTime() || 0;
         }
 
         async function loadAthletesData() {
             try {
-                const response = await fetch(SHEET_CSV_URL);
-                const dataText = await response.text();
+                // ดึงข้อมูล 2 ชีตพร้อมกัน
+                const [regRes, logRes] = await Promise.all([fetch(REG_CSV_URL), fetch(LOG_CSV_URL)]);
+                const regText = await regRes.text();
+                const logText = await logRes.text();
                 
-                // แยกข้อมูลทีละบรรทัด (ข้ามบรรทัดแรกที่เป็นหัวตาราง)
-                const lines = dataText.split('\n');
-                members = [];
-                eventData = {};
+                const membersMap = {};
 
-                for (let i = 1; i < lines.length; i++) {
-                    const line = lines[i].trim();
+                // 1. จัดการข้อมูลลงทะเบียน
+                const regLines = regText.split('\n');
+                for (let i = 1; i < regLines.length; i++) {
+                    const line = regLines[i].trim();
                     if (!line) continue;
-                    
-                    // แยกคอลัมน์ด้วยเครื่องหมายจุลภาค (,)
                     const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').trim());
                     
                     if (row.length >= 7) {
-                        const evtName = row[6] || "-";
-                        const newMember = {
-                            id: 100 + i,
-                            fullname: row[1],
-                            name: row[2] || row[1].split(' ')[0], // ถ้าไม่มีชื่อเล่น เอาชื่อจริงคำแรก
-                            grade: row[5].includes("ม.") ? row[5] : "ม." + row[5],
-                            event: evtName,
-                            img: convertDriveLink(row[7]),
-                            // ข้อมูลสถิติจำลองไปก่อน จนกว่าจะมีการเก็บข้อมูลซ้อมจริง
-                            streak: Math.floor(Math.random() * 30), 
-                            distance: parseFloat((Math.random() * 50).toFixed(1)),
-                            last5: ['Y', 'Y', '-', 'Y', 'Y']
-                        };
-                        members.push(newMember);
-
-                        // จัดกลุ่มนักกีฬาตามรายการแข่งขันอัตโนมัติ
-                        if (!eventData[evtName]) eventData[evtName] = [];
-                        eventData[evtName].push({
-                            name: newMember.name,
-                            time: (12 + Math.random() * 3).toFixed(1), // เวลากระโดดจำลอง
-                            practiceCount: newMember.streak,
-                            history: [13.2, 12.8, 12.5, 12.3, 12.1] // กราฟจำลอง
-                        });
+                        const id = row[3]; // คอลัมน์ D: เลขประจำตัว
+                        if (id) {
+                            membersMap[id] = {
+                                id: id,
+                                fullname: row[1],
+                                name: row[2] || row[1].split(' ')[0],
+                                grade: row[5].includes("ม.") ? row[5] : "ม." + row[5],
+                                event: row[6] || "-",
+                                img: convertDriveLink(row[7]),
+                                dailyLogs: {}, // เก็บระยะทางแยกตามวัน { '01/07/2026': 2.5 }
+                                distance: 0,
+                                practiceCount: 0 
+                            };
+                        }
                     }
                 }
                 
-                // ตั้งค่าเริ่มต้นของ Dashboard เป็นรายการแข่งขันแรกที่เจอใน Sheet
+                // 2. จัดการข้อมูลระยะทางวิ่ง (บันทึกรายวัน)
+                const logLines = logText.split('\n');
+                const allDatesSet = new Set();
+
+                for (let i = 1; i < logLines.length; i++) {
+                    const line = logLines[i].trim();
+                    if (!line) continue;
+                    const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').trim());
+                    
+                    // ชีตใหม่มี 5 คอลัมน์ (0:เวลา, 1:รหัส, 2:วันที่, 3:ระยะ, 4:รูป)
+                    if (row.length >= 4) {
+                        const id = row[1];
+                        const dateStr = row[2]; // วันเดือนปีที่วิ่ง
+                        const distStr = row[3]; // ระยะทาง
+                        
+                        if (id && dateStr && distStr && membersMap[id]) {
+                            const dist = parseFloat(distStr) || 0;
+                            if (!membersMap[id].dailyLogs[dateStr]) {
+                                membersMap[id].dailyLogs[dateStr] = 0;
+                                membersMap[id].practiceCount++; // เพิ่มจำนวนวันซ้อม
+                            }
+                            // บวกระยะทางเพิ่มเข้าไปในวันนั้นๆ และรวมยอดสะสม
+                            membersMap[id].dailyLogs[dateStr] += dist;
+                            membersMap[id].distance += dist;
+                            allDatesSet.add(dateStr); // เก็บวันที่ทั้งหมดที่มีในระบบ
+                        }
+                    }
+                }
+
+                // 3. หาวันที่ซ้อม 5 วันล่าสุดของ "ทั้งทีม" (เพื่อไปทำ Form Guide ว่าใครขาดซ้อมบ้าง)
+                const sortedGlobalDates = Array.from(allDatesSet).sort((a,b) => parseDateString(a) - parseDateString(b));
+                const recent5Dates = sortedGlobalDates.slice(-5);
+
+                // 4. สรุปผลข้อมูลนักกีฬา
+                members = [];
+                eventData = {};
+
+                for (const id in membersMap) {
+                    const m = membersMap[id];
+                    
+                    // สรุปการเข้าซ้อม 5 วันล่าสุด
+                    m.last5 = recent5Dates.map(d => m.dailyLogs[d] ? 'Y' : 'N');
+                    while(m.last5.length < 5) m.last5.unshift('-'); 
+
+                    // สรุปข้อมูลกราฟ (ระยะทาง 5 วันล่าสุด)
+                    m.history = recent5Dates.map(d => m.dailyLogs[d] || 0);
+                    while(m.history.length < 5) m.history.unshift(0);
+
+                    m.distance = parseFloat(m.distance.toFixed(2));
+                    m.streak = m.practiceCount; 
+
+                    members.push(m);
+
+                    // จัดกลุ่มนักกีฬาตามรายการแข่งขันอัตโนมัติ
+                    if (!eventData[m.event]) eventData[m.event] = [];
+                    eventData[m.event].push(m);
+                }
+
                 if (Object.keys(eventData).length > 0) {
                     selectedEvent = Object.keys(eventData)[0];
                 }
 
-                // สั่งโหลด UI ใหม่หลังจากได้ข้อมูลครบ
                 safeRenderApp();
 
             } catch (error) {
@@ -163,14 +214,13 @@
                 document.getElementById('main-content').innerHTML = `
                     <div class="text-center text-red-500 mt-10">
                         <i data-lucide="alert-triangle" class="w-12 h-12 mx-auto mb-2"></i>
-                        <p class="font-bold">โหลดข้อมูลจากฟอร์มไม่สำเร็จ</p>
-                        <p class="text-sm">โปรดตรวจสอบลิงก์ Google Sheets อีกครั้ง</p>
+                        <p class="font-bold">โหลดข้อมูลไม่สำเร็จ</p>
+                        <p class="text-sm">ตรวจสอบลิงก์ Google Sheets อีกครั้ง</p>
                     </div>`;
                 if(window.lucide) lucide.createIcons();
             }
         }
 
-        // --- CORE LOGIC ---
         function toggleMenu() {
             isMenuOpen = !isMenuOpen;
             const overlay = document.getElementById('sidebar-overlay');
@@ -214,7 +264,6 @@
             `).join('');
         }
 
-        // ฟังก์ชันครอบสำหรับป้องกันจอขาว (White Screen)
         function safeRenderApp() {
             try {
                 const mainContent = document.getElementById('main-content');
@@ -227,18 +276,13 @@
                 else if (activeTab === 'profile') contentHtml = renderProfile();
 
                 mainContent.innerHTML = contentHtml;
-                
-                // สร้างไอคอนหลังจากวาด HTML เสร็จ
-                if (window.lucide) {
-                    lucide.createIcons();
-                }
+                if (window.lucide) lucide.createIcons();
             } catch (err) {
                 console.error("Render Error: ", err);
-                document.getElementById('main-content').innerHTML = `<div class="p-4 bg-red-100 text-red-600 border border-red-500 rounded">เกิดข้อผิดพลาดในการแสดงผล: ${err.message}</div>`;
+                document.getElementById('main-content').innerHTML = `<div class="p-4 bg-red-100 text-red-600 border border-red-500 rounded">เกิดข้อผิดพลาด: ${err.message}</div>`;
             }
         }
 
-        // --- RENDER VIEWS ---
         function renderHome() {
             let leadersHtml = leaders.map((leader, idx) => `
                 <div class="border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-4 ${idx === 0 ? 'bg-yellow-100' : 'bg-white'}">
@@ -259,18 +303,21 @@
                 </div>
             `).join('');
 
-            // แสดงข้อความถ้าน้องๆ ยังไม่มีในระบบ
             if (members.length === 0) {
                 return `
                 <div class="space-y-8 animate-in fade-in duration-300">
                     <section>
                         <div class="inline-block bg-black text-yellow-400 px-4 py-2 border-4 border-black mb-4 font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(255,255,255,1)]">
-                            ★ แกนนำสีเหลือง (ม.6)
+                            Admin
                         </div>
                         <div class="flex flex-col gap-6 mt-2">${leadersHtml}</div>
                     </section>
                     <section class="text-center py-10">
                          <p class="text-gray-500 font-bold">ยังไม่มีรายชื่อน้องๆ จากแบบฟอร์ม</p>
+                    </section>
+                    <section class="text-center py-10 bg-white border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                         <p class="text-gray-500 font-bold mb-2">ยังไม่มีข้อมูลซ้อมวิ่งจากฟอร์ม</p>
+                         <p class="text-xs">กรอกข้อมูลในชีตแล้วกดรีเฟรช</p>
                     </section>
                 </div>`;
             }
@@ -315,13 +362,13 @@
                 <div class="space-y-8 animate-in fade-in duration-300">
                     <section>
                         <div class="inline-block bg-black text-yellow-400 px-4 py-2 border-4 border-black mb-4 font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(255,255,255,1)]">
-                            ★ แกนนำสีเหลือง (ม.6)
+                            Admin
                         </div>
                         <div class="flex flex-col gap-6 mt-2">${leadersHtml}</div>
                     </section>
                     <section>
                         <div class="inline-block bg-white text-black px-4 py-2 border-4 border-black mb-4 font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                            นักกีฬาดาวรุ่ง จากฟอร์มสมัคร
+                            นักกีฬาดาวรุ่ง (รวมระยะวิ่ง)
                         </div>
                         <div class="grid grid-cols-1 gap-4">${membersHtml}</div>
                     </section>
@@ -330,11 +377,13 @@
         }
 
         function renderDashboard() {
-            if (!selectedEvent || !eventData[selectedEvent]) return `<div class="text-center py-10 font-bold text-gray-500">กำลังประมวลผลข้อมูลการแข่งขัน...</div>`;
+            if (!selectedEvent || !eventData[selectedEvent]) return `<div class="text-center py-10 font-bold text-gray-500">ยังไม่มีข้อมูลระยะทางสำหรับรายการนี้</div>`;
 
             const isRelay = selectedEvent.includes('4*') || selectedEvent.includes('4x');
             const starterLimit = isRelay ? 4 : 2;
-            const currentData = [...eventData[selectedEvent]].sort((a, b) => a.time - b.time);
+            
+            // แดชบอร์ดเรียงตามคนวิ่ง "ระยะทางรวม" ได้มากที่สุด
+            const currentData = [...eventData[selectedEvent]].sort((a, b) => b.distance - a.distance);
 
             let eventButtons = Object.keys(eventData).map(event => `
                 <button
@@ -348,21 +397,19 @@
             let runnersHtml = currentData.map((runner, index) => {
                 const isStarter = index < starterLimit;
                 
-                // SVG Graph calculation
+                // คำนวณกราฟเส้น (ระยะทางต่อวัน) ยิ่งระยะเยอะ กราฟยิ่งสูง
                 const data = runner.history;
-                const min = Math.min(...data) - 0.2; 
-                const max = Math.max(...data) + 0.2;
-                const range = max - min;
+                const maxVal = Math.max(...data, 1); // อย่างน้อย 1 เพื่อกันหาร 0
                 
                 let points = data.map((val, i) => {
                     const x = (i / (data.length - 1)) * 100;
-                    const y = ((val - min) / range) * 40;
+                    const y = 40 - (val / maxVal) * 40; // y = 0 คือด้านบน
                     return `${x},${y}`;
                 }).join(' ');
 
                 let circles = data.map((val, i) => {
                     const x = (i / (data.length - 1)) * 100;
-                    const y = ((val - min) / range) * 40;
+                    const y = 40 - (val / maxVal) * 40;
                     return `<circle cx="${x}" cy="${y}" r="3" fill="#fff" stroke="${isStarter ? '#000' : '#666'}" stroke-width="2" />`;
                 }).join('');
 
@@ -373,7 +420,7 @@
                             <span class="font-black w-6 text-center text-lg ${isStarter ? 'text-yellow-600' : 'text-gray-500'}">#${index + 1}</span>
                             <div>
                                 <p class="font-bold text-lg">${runner.name}</p>
-                                <p class="text-xs text-gray-600 font-medium">สถิติล่าสุด: <span class="font-black text-black">${runner.time}s</span></p>
+                                <p class="text-xs text-gray-600 font-medium">รวมทั้งหมด: <span class="font-black text-black">${runner.distance} km</span></p>
                             </div>
                         </div>
                         <div class="text-right">
@@ -386,7 +433,7 @@
                     
                     <div class="p-3 bg-white flex items-center justify-between gap-4">
                         <div class="flex-1">
-                            <p class="text-[10px] font-bold text-gray-500 mb-1">กราฟสถิติ 5 ครั้งล่าสุด (ยิ่งสูงยิ่งเร็ว)</p>
+                            <p class="text-[10px] font-bold text-gray-500 mb-1">กราฟระยะทาง 5 วันล่าสุด (ยิ่งสูงยิ่งวิ่งเยอะ)</p>
                             <div class="relative w-full h-12 border-l-2 border-b-2 border-gray-300 pt-1 pr-1">
                                 <svg viewBox="0 -5 100 50" class="w-full h-full overflow-visible" preserveAspectRatio="none">
                                     <polyline fill="none" stroke="${isStarter ? '#eab308' : '#9ca3af'}" stroke-width="3" points="${points}"></polyline>
@@ -396,7 +443,7 @@
                         </div>
                         <div class="text-right shrink-0">
                             <p class="text-[10px] text-gray-500 font-bold uppercase">เข้าซ้อม</p>
-                            <p class="font-black text-xl">${runner.practiceCount} <span class="text-xs font-normal">ครั้ง</span></p>
+                            <p class="font-black text-xl">${runner.streak} <span class="text-xs font-normal">วัน</span></p>
                         </div>
                     </div>
                 </div>
@@ -407,7 +454,7 @@
                 <div class="space-y-6">
                     <div>
                         <h2 class="font-black text-xl mb-3 flex items-center gap-2">
-                            <i data-lucide="medal" class="w-6 h-6 text-yellow-600"></i> คัดตัวจากฟอร์ม (${selectedEvent})
+                            <i data-lucide="medal" class="w-6 h-6 text-yellow-600"></i> คัดตัวจากระยะวิ่ง (${selectedEvent})
                         </h2>
                         <div class="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
                             ${eventButtons}
@@ -473,15 +520,16 @@
             let eventsHtml = Object.keys(eventData).map(eventName => {
                 const isRelay = eventName.includes('4*') || eventName.includes('4x');
                 const starterLimit = isRelay ? 4 : 2;
-                const starters = [...eventData[eventName]].sort((a, b) => a.time - b.time).slice(0, starterLimit);
+                // ในหน้านี้เราดึงคนที่เป็นตัวจริงมาโชว์ (เรียงตามระยะทาง)
+                const starters = [...eventData[eventName]].sort((a, b) => b.distance - a.distance).slice(0, starterLimit);
 
                 let runnersCards = starters.map((runner) => `
                     <div class="bg-white border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center text-center">
                         <div class="w-10 h-10 border border-black bg-gray-100 rounded-full mb-2 overflow-hidden flex items-center justify-center">
-                            <i data-lucide="user" class="text-gray-400 w-6 h-6"></i>
+                            <img src="${runner.img}" alt="${runner.name}" class="w-full h-full object-cover" />
                         </div>
                         <p class="font-bold">${runner.name}</p>
-                        <p class="text-[10px] text-gray-500 font-mono">${runner.time}s</p>
+                        <p class="text-[10px] text-gray-500 font-mono">${runner.distance} km</p>
                     </div>
                 `).join('');
 
@@ -524,11 +572,11 @@
             `;
         }
 
-        // --- ทำงานเมื่อโหลดสคริปต์เสร็จ ---
+        // --- ทำงานเมื่อโหลดหน้าเว็บเสร็จ ---
         renderNav();
-        if (window.lucide) lucide.createIcons(); // โหลดไอคอนเมนูด้านข้างและหน้าโหลด
+        if (window.lucide) lucide.createIcons();
         
-        // เริ่มดึงข้อมูลจาก Google Sheets ทันที
+        // เริ่มดึงข้อมูล 2 ชีตพร้อมกันทันที
         loadAthletesData();
 
     </script>
