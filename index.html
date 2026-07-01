@@ -44,7 +44,6 @@
 
     <!-- Sidebar Overlay -->
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 z-50 opacity-0 pointer-events-none transition-opacity duration-300" onclick="toggleMenu()">
-        <!-- Sidebar Content -->
         <div id="sidebar-content" class="absolute top-0 left-0 w-3/4 max-w-sm h-full bg-yellow-400 border-r-4 border-black transform -translate-x-full transition-transform duration-300 ease-in-out" onclick="event.stopPropagation()">
             <div class="p-4 border-b-4 border-black flex justify-between items-center bg-white">
                 <h2 class="font-black text-xl">เมนูหลัก</h2>
@@ -53,46 +52,46 @@
                 </button>
             </div>
             <nav class="p-4 flex flex-col gap-4 mt-4" id="nav-menu">
-                <!-- Navigation Buttons will be injected here -->
+                <!-- Navigation Buttons -->
             </nav>
         </div>
     </div>
 
+    <!-- Main Content Area -->
     <main class="max-w-md mx-auto pt-24 px-4" id="main-content">
-        <!-- Loading State จะแสดงตรงนี้ก่อนดึงข้อมูลเสร็จ -->
         <div class="flex flex-col items-center justify-center h-[50vh]">
             <i data-lucide="loader" class="w-10 h-10 animate-spin mb-4 text-yellow-500"></i>
-            <p class="font-bold text-lg animate-pulse">กำลังซิงค์ข้อมูลระยะทางวิ่ง...</p>
+            <p class="font-bold text-lg animate-pulse">กำลังซิงค์ข้อมูลจากฐานข้อมูล...</p>
         </div>
     </main>
 
     <script>
-        // --- ข้อมูลแกนนำ (ยังคงเป็นข้อมูลคงที่ 3 คน) ---
+        // ข้อมูลแอดมิน
         const leaders = [
             { id: 1, name: 'พี่สตางค์', fullname: 'นายธนวิชญ์ กองนิล', grade: 'ม.6/3', role: 'หัวหน้าคุมกรีฑาม.ต้น', contact: 'IG: protangsawaddee', img: 'https://i.postimg.cc/8CQC7FDH/24863.jpg' },
             { id: 2, name: 'พี่ก้านพูล', fullname: 'นายพัฒธิวัฒน์ สุขนวล', grade: 'ม.6/7', role: 'รองหัวหน้าคุมกรีฑาม.ต้น', contact: 'IG: pxtiwqtp_.16', img: 'https://i.postimg.cc/wMLz82yn/24864.jpg' },
             { id: 3, name: 'พี่ซีซ่า', fullname: 'นายปุญญพัฒน์ นำหน้า', grade: 'ม.6/3', role: 'สวัสดิการ (ลิ่วล้อ)', contact: 'IG: zzapunyaphat', img: 'https://i.postimg.cc/4xBggmy7/24866.jpg' },
         ];
 
+        // ตัวแปรเก็บข้อมูล
         let members = [];
         let eventData = {}; 
-        
-        // ลิงก์ดึงข้อมูล 1: แบบฟอร์มลงทะเบียน (ชื่อ, รหัส, รายการ)
-        const REG_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRD62YfgQ97itiaoCuHGwY-JwtkRP3U6FQXCiPGxHxEfpmQ1XAaFs12bAOEmsONsoKW88f150m7TyeO/pub?output=csv&gid=170326434";
-        // ลิงก์ดึงข้อมูล 2: แบบฟอร์มเก็บระยะทางวิ่ง
-        const LOG_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRL84Ewdp36UzuqhNXKJiF8HoDYXP0RZ9IYFx4RCx6AyIAmHbqkZwTgz5HTqO1Pkq7GrL8Q319yyuu7/pub?output=csv";
+        let currentUser = null;
+        let activeTab = 'home';
+        let isMenuOpen = false;
+        let selectedEvent = '';
+
+        // ลิงก์ฐานข้อมูลทั้ง 2 ฟอร์ม
+        const FORM_REG_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRD62YfgQ97itiaoCuHGwY-JwtkRP3U6FQXCiPGxHxEfpmQ1XAaFs12bAOEmsONsoKW88f150m7TyeO/pub?output=csv&gid=170326434"; // ฟอร์มลงทะเบียน
+        const FORM_LOG_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRL84Ewdp36UzuqhNXKJiF8HoDYXP0RZ9IYFx4RCx6AyIAmHbqkZwTgz5HTqO1Pkq7GrL8Q319yyuu7/pub?output=csv"; // ฟอร์มเก็บระยะ
 
         const navItems = [
             { id: 'home', label: 'หน้าแรก', icon: 'users' },
             { id: 'dashboard', label: 'แดชบอร์ด', icon: 'activity' },
             { id: 'leaderboard', label: 'ตารางอันดับ', icon: 'trophy' },
             { id: 'events', label: 'รายการแข่งขัน', icon: 'calendar' },
-            { id: 'profile', label: 'โปรไฟล์', icon: 'alert-circle' },
+            { id: 'profile', label: 'โปรไฟล์', icon: 'user' }, // เปลี่ยนไอคอนเป็น user
         ];
-
-        let activeTab = 'home';
-        let isMenuOpen = false;
-        let selectedEvent = '';
 
         function convertDriveLink(url) {
             if (!url) return 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Yellow';
@@ -101,107 +100,100 @@
             return url;
         }
 
-        // ตัวช่วยแปลงวันที่สำหรับนำไปจัดเรียง
-        function parseDateString(ds) {
-            if(!ds) return 0;
-            if(ds.includes('/')) {
-                const p = ds.split('/'); // แปลง DD/MM/YYYY เป็น timestamp
-                if(p.length === 3) return new Date(`${p[2]}-${p[1]}-${p[0]}`).getTime();
-            }
-            return new Date(ds).getTime() || 0;
-        }
-
         async function loadAthletesData() {
             try {
-                // ดึงข้อมูล 2 ชีตพร้อมกัน
-                const [regRes, logRes] = await Promise.all([fetch(REG_CSV_URL), fetch(LOG_CSV_URL)]);
-                const regText = await regRes.text();
-                const logText = await logRes.text();
+                // ดึงข้อมูล 2 ฟอร์มพร้อมกัน
+                const [resReg, resLog] = await Promise.all([
+                    fetch(FORM_REG_URL),
+                    fetch(FORM_LOG_URL)
+                ]);
                 
-                const membersMap = {};
+                const dataReg = await resReg.text();
+                const dataLog = await resLog.text();
+                
+                let membersMap = {};
 
                 // 1. จัดการข้อมูลลงทะเบียน
-                const regLines = regText.split('\n');
-                for (let i = 1; i < regLines.length; i++) {
-                    const line = regLines[i].trim();
+                const linesReg = dataReg.split('\n');
+                for (let i = 1; i < linesReg.length; i++) {
+                    const line = linesReg[i].trim();
                     if (!line) continue;
                     const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').trim());
                     
                     if (row.length >= 7) {
-                        const id = row[3]; // คอลัมน์ D: เลขประจำตัว
-                        if (id) {
-                            membersMap[id] = {
-                                id: id,
-                                fullname: row[1],
-                                name: row[2] || row[1].split(' ')[0],
-                                grade: row[5].includes("ม.") ? row[5] : "ม." + row[5],
-                                event: row[6] || "-",
-                                img: convertDriveLink(row[7]),
-                                dailyLogs: {}, // เก็บระยะทางแยกตามวัน { '01/07/2026': 2.5 }
-                                distance: 0,
-                                practiceCount: 0 
-                            };
-                        }
+                        const studentId = row[3];
+                        const gender = row[4] ? row[4].trim() : "";
+                        const evtName = (row[6] || "-") + (gender ? ` (${gender})` : "");
+                        
+                        const cleanGrade = row[5].replace(/^ม\./, '').trim();
+                        const loginId = `${studentId}_${cleanGrade}`;
+                        const password = studentId;
+
+                        membersMap[studentId] = {
+                            id: studentId,
+                            loginId: loginId,
+                            password: password,
+                            fullname: row[1],
+                            name: row[2] || row[1].split(' ')[0],
+                            grade: row[5].includes("ม.") ? row[5] : "ม." + row[5],
+                            event: evtName,
+                            img: convertDriveLink(row[7]),
+                            streak: 0,
+                            distance: 0,
+                            practiceCount: 0,
+                            last5: ['-', '-', '-', '-', '-'],
+                            history: [], 
+                            runHistory: [] 
+                        };
                     }
                 }
-                
-                // 2. จัดการข้อมูลระยะทางวิ่ง (บันทึกรายวัน)
-                const logLines = logText.split('\n');
-                const allDatesSet = new Set();
 
-                for (let i = 1; i < logLines.length; i++) {
-                    const line = logLines[i].trim();
+                // 2. จัดการข้อมูลการวิ่ง (ฟอร์ม 2)
+                const linesLog = dataLog.split('\n');
+                for (let i = 1; i < linesLog.length; i++) {
+                    const line = linesLog[i].trim();
                     if (!line) continue;
                     const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').trim());
                     
-                    // ชีตใหม่มี 5 คอลัมน์ (0:เวลา, 1:รหัส, 2:วันที่, 3:ระยะ, 4:รูป)
                     if (row.length >= 4) {
-                        const id = row[1];
-                        const dateStr = row[2]; // วันเดือนปีที่วิ่ง
-                        const distStr = row[3]; // ระยะทาง
-                        
-                        if (id && dateStr && distStr && membersMap[id]) {
+                        const studentId = row[1]; // คอลัมน์ B (Index 1) = รหัสประจำตัว
+                        if (membersMap[studentId]) {
+                            const runDate = row[2]; // วันที่วิ่ง
+                            const distStr = row[3] ? row[3].replace(/[^\d.]/g, '') : "0"; // ดึงเฉพาะตัวเลขจากคอลัมน์ D
                             const dist = parseFloat(distStr) || 0;
-                            if (!membersMap[id].dailyLogs[dateStr]) {
-                                membersMap[id].dailyLogs[dateStr] = 0;
-                                membersMap[id].practiceCount++; // เพิ่มจำนวนวันซ้อม
-                            }
-                            // บวกระยะทางเพิ่มเข้าไปในวันนั้นๆ และรวมยอดสะสม
-                            membersMap[id].dailyLogs[dateStr] += dist;
-                            membersMap[id].distance += dist;
-                            allDatesSet.add(dateStr); // เก็บวันที่ทั้งหมดที่มีในระบบ
+                            const imgLink = row[4] ? convertDriveLink(row[4]) : "";
+
+                            membersMap[studentId].distance += dist;
+                            membersMap[studentId].practiceCount += 1;
+                            membersMap[studentId].history.push(dist);
+                            membersMap[studentId].runHistory.push({
+                                date: runDate,
+                                distance: dist,
+                                img: imgLink || membersMap[studentId].img
+                            });
+                            
+                            // อัปเดตเช็คซ้อม 5 วันล่าสุด
+                            membersMap[studentId].last5.shift();
+                            membersMap[studentId].last5.push('Y');
                         }
                     }
                 }
 
-                // 3. หาวันที่ซ้อม 5 วันล่าสุดของ "ทั้งทีม" (เพื่อไปทำ Form Guide ว่าใครขาดซ้อมบ้าง)
-                const sortedGlobalDates = Array.from(allDatesSet).sort((a,b) => parseDateString(a) - parseDateString(b));
-                const recent5Dates = sortedGlobalDates.slice(-5);
-
-                // 4. สรุปผลข้อมูลนักกีฬา
-                members = [];
+                // 3. นำ Map กลับมาเป็น Array
+                members = Object.values(membersMap);
+                
+                // จัดกลุ่มตามรายการแข่งขัน
                 eventData = {};
-
-                for (const id in membersMap) {
-                    const m = membersMap[id];
-                    
-                    // สรุปการเข้าซ้อม 5 วันล่าสุด
-                    m.last5 = recent5Dates.map(d => m.dailyLogs[d] ? 'Y' : 'N');
-                    while(m.last5.length < 5) m.last5.unshift('-'); 
-
-                    // สรุปข้อมูลกราฟ (ระยะทาง 5 วันล่าสุด)
-                    m.history = recent5Dates.map(d => m.dailyLogs[d] || 0);
-                    while(m.history.length < 5) m.history.unshift(0);
-
-                    m.distance = parseFloat(m.distance.toFixed(2));
-                    m.streak = m.practiceCount; 
-
-                    members.push(m);
-
-                    // จัดกลุ่มนักกีฬาตามรายการแข่งขันอัตโนมัติ
-                    if (!eventData[m.event]) eventData[m.event] = [];
-                    eventData[m.event].push(m);
-                }
+                members.forEach(member => {
+                    if (!eventData[member.event]) eventData[member.event] = [];
+                    eventData[member.event].push({
+                        name: member.name,
+                        img: member.img, // เพิ่มรูปภาพเข้ามาตรงนี้
+                        distance: parseFloat(member.distance.toFixed(1)), // จัดอันดับตามระยะทาง
+                        practiceCount: member.practiceCount,
+                        history: member.history.length > 0 ? member.history : [0] // ถ้าไม่เคยวิ่งให้โชว์กราฟ 0
+                    });
+                });
 
                 if (Object.keys(eventData).length > 0) {
                     selectedEvent = Object.keys(eventData)[0];
@@ -212,10 +204,10 @@
             } catch (error) {
                 console.error("Failed to load Google Sheet data:", error);
                 document.getElementById('main-content').innerHTML = `
-                    <div class="text-center text-red-500 mt-10">
+                    <div class="text-center text-red-500 mt-10 border-4 border-red-500 p-4 bg-white">
                         <i data-lucide="alert-triangle" class="w-12 h-12 mx-auto mb-2"></i>
                         <p class="font-bold">โหลดข้อมูลไม่สำเร็จ</p>
-                        <p class="text-sm">ตรวจสอบลิงก์ Google Sheets อีกครั้ง</p>
+                        <p class="text-sm">โปรดตรวจสอบลิงก์ Google Sheets</p>
                     </div>`;
                 if(window.lucide) lucide.createIcons();
             }
@@ -279,7 +271,7 @@
                 if (window.lucide) lucide.createIcons();
             } catch (err) {
                 console.error("Render Error: ", err);
-                document.getElementById('main-content').innerHTML = `<div class="p-4 bg-red-100 text-red-600 border border-red-500 rounded">เกิดข้อผิดพลาด: ${err.message}</div>`;
+                document.getElementById('main-content').innerHTML = `<div class="p-4 bg-red-100 text-red-600 border border-red-500 font-bold">เกิดข้อผิดพลาด: ${err.message}</div>`;
             }
         }
 
@@ -315,10 +307,6 @@
                     <section class="text-center py-10">
                          <p class="text-gray-500 font-bold">ยังไม่มีรายชื่อน้องๆ จากแบบฟอร์ม</p>
                     </section>
-                    <section class="text-center py-10 bg-white border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                         <p class="text-gray-500 font-bold mb-2">ยังไม่มีข้อมูลซ้อมวิ่งจากฟอร์ม</p>
-                         <p class="text-xs">กรอกข้อมูลในชีตแล้วกดรีเฟรช</p>
-                    </section>
                 </div>`;
             }
 
@@ -342,14 +330,9 @@
                             </div>
                         </div>
                         <div class="flex flex-col items-end gap-1">
-                            <div class="flex items-center gap-1 bg-red-100 border-2 border-red-500 px-2 py-1 rounded-full">
-                                <i data-lucide="flame" class="w-3.5 h-3.5 text-red-500 fill-current"></i>
-                                <span class="font-black text-red-600 text-sm">${member.streak}</span>
-                            </div>
-                            <p class="text-xs font-black bg-yellow-300 px-1 border border-black" style="font-family: 'Courier New', Courier, monospace">${member.distance} km</p>
+                            <p class="text-xs font-black bg-yellow-300 px-1 border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" style="font-family: 'Courier New', Courier, monospace">${parseFloat(member.distance.toFixed(1))} km</p>
                         </div>
                     </div>
-                    
                     <div class="mt-3 flex items-center justify-between border-t-2 border-gray-100 pt-2">
                         <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">เข้าซ้อม 5 วันล่าสุด</span>
                         <div class="flex gap-1.5">${formGuide}</div>
@@ -368,7 +351,7 @@
                     </section>
                     <section>
                         <div class="inline-block bg-white text-black px-4 py-2 border-4 border-black mb-4 font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                            นักกีฬาดาวรุ่ง (รวมระยะวิ่ง)
+                            นักกีฬาดาวรุ่ง
                         </div>
                         <div class="grid grid-cols-1 gap-4">${membersHtml}</div>
                     </section>
@@ -377,12 +360,13 @@
         }
 
         function renderDashboard() {
-            if (!selectedEvent || !eventData[selectedEvent]) return `<div class="text-center py-10 font-bold text-gray-500">ยังไม่มีข้อมูลระยะทางสำหรับรายการนี้</div>`;
+            if (!selectedEvent || !eventData[selectedEvent]) return `<div class="text-center py-10 font-bold text-gray-500">ยังไม่มีข้อมูลสำหรับรายการนี้</div>`;
 
-            const isRelay = selectedEvent.includes('4*') || selectedEvent.includes('4x');
+            const cleanEventName = selectedEvent.replace(/\s+/g, '').toLowerCase();
+            const isRelay = cleanEventName.includes('4*') || cleanEventName.includes('4x');
             const starterLimit = isRelay ? 4 : 2;
             
-            // แดชบอร์ดเรียงตามคนวิ่ง "ระยะทางรวม" ได้มากที่สุด
+            // แดชบอร์ดเรียงตามคนวิ่งระยะทางรวมได้มากที่สุด
             const currentData = [...eventData[selectedEvent]].sort((a, b) => b.distance - a.distance);
 
             let eventButtons = Object.keys(eventData).map(event => `
@@ -396,20 +380,20 @@
 
             let runnersHtml = currentData.map((runner, index) => {
                 const isStarter = index < starterLimit;
-                
-                // คำนวณกราฟเส้น (ระยะทางต่อวัน) ยิ่งระยะเยอะ กราฟยิ่งสูง
                 const data = runner.history;
-                const maxVal = Math.max(...data, 1); // อย่างน้อย 1 เพื่อกันหาร 0
+                const min = Math.min(...data) - 0.2; 
+                const max = Math.max(...data) + 0.2;
+                const range = max - min === 0 ? 1 : max - min; // ป้องกันหาร 0
                 
                 let points = data.map((val, i) => {
-                    const x = (i / (data.length - 1)) * 100;
-                    const y = 40 - (val / maxVal) * 40; // y = 0 คือด้านบน
+                    const x = data.length === 1 ? 50 : (i / (data.length - 1)) * 100;
+                    const y = 40 - (((val - min) / range) * 40); // ค่ายิ่งมากยิ่งอยู่สูง
                     return `${x},${y}`;
                 }).join(' ');
 
                 let circles = data.map((val, i) => {
-                    const x = (i / (data.length - 1)) * 100;
-                    const y = 40 - (val / maxVal) * 40;
+                    const x = data.length === 1 ? 50 : (i / (data.length - 1)) * 100;
+                    const y = 40 - (((val - min) / range) * 40);
                     return `<circle cx="${x}" cy="${y}" r="3" fill="#fff" stroke="${isStarter ? '#000' : '#666'}" stroke-width="2" />`;
                 }).join('');
 
@@ -420,7 +404,7 @@
                             <span class="font-black w-6 text-center text-lg ${isStarter ? 'text-yellow-600' : 'text-gray-500'}">#${index + 1}</span>
                             <div>
                                 <p class="font-bold text-lg">${runner.name}</p>
-                                <p class="text-xs text-gray-600 font-medium">รวมทั้งหมด: <span class="font-black text-black">${runner.distance} km</span></p>
+                                <p class="text-xs text-gray-600 font-medium">ระยะรวม: <span class="font-black text-black">${runner.distance} km</span></p>
                             </div>
                         </div>
                         <div class="text-right">
@@ -430,10 +414,9 @@
                             }
                         </div>
                     </div>
-                    
                     <div class="p-3 bg-white flex items-center justify-between gap-4">
                         <div class="flex-1">
-                            <p class="text-[10px] font-bold text-gray-500 mb-1">กราฟระยะทาง 5 วันล่าสุด (ยิ่งสูงยิ่งวิ่งเยอะ)</p>
+                            <p class="text-[10px] font-bold text-gray-500 mb-1">กราฟระยะทางรายวัน</p>
                             <div class="relative w-full h-12 border-l-2 border-b-2 border-gray-300 pt-1 pr-1">
                                 <svg viewBox="0 -5 100 50" class="w-full h-full overflow-visible" preserveAspectRatio="none">
                                     <polyline fill="none" stroke="${isStarter ? '#eab308' : '#9ca3af'}" stroke-width="3" points="${points}"></polyline>
@@ -443,7 +426,7 @@
                         </div>
                         <div class="text-right shrink-0">
                             <p class="text-[10px] text-gray-500 font-bold uppercase">เข้าซ้อม</p>
-                            <p class="font-black text-xl">${runner.streak} <span class="text-xs font-normal">วัน</span></p>
+                            <p class="font-black text-xl">${runner.practiceCount} <span class="text-xs font-normal">วัน</span></p>
                         </div>
                     </div>
                 </div>
@@ -454,7 +437,7 @@
                 <div class="space-y-6">
                     <div>
                         <h2 class="font-black text-xl mb-3 flex items-center gap-2">
-                            <i data-lucide="medal" class="w-6 h-6 text-yellow-600"></i> คัดตัวจากระยะวิ่ง (${selectedEvent})
+                            <i data-lucide="activity" class="w-6 h-6 text-yellow-600"></i> แดชบอร์ดคัดตัว
                         </h2>
                         <div class="flex overflow-x-auto gap-2 pb-2 hide-scrollbar">
                             ${eventButtons}
@@ -469,7 +452,6 @@
 
         function renderLeaderboard() {
             if (members.length === 0) return `<div class="text-center py-10 font-bold">ยังไม่มีข้อมูลนักกีฬา</div>`;
-
             const sortedMembers = [...members].sort((a, b) => b.distance - a.distance);
             
             let htmlList = sortedMembers.map((member, index) => {
@@ -493,7 +475,7 @@
                     </div>
                     <div class="text-right">
                         <p class="font-black text-xl text-black" style="font-family: 'Courier New', Courier, monospace">
-                            ${member.distance}<span class="text-sm font-bold text-gray-600 ml-1">km</span>
+                            ${parseFloat(member.distance.toFixed(1))}<span class="text-sm font-bold text-gray-600 ml-1">km</span>
                         </p>
                     </div>
                 </div>
@@ -518,15 +500,15 @@
             if (Object.keys(eventData).length === 0) return `<div class="text-center py-10 font-bold">ยังไม่มีข้อมูลรายการแข่งขัน</div>`;
 
             let eventsHtml = Object.keys(eventData).map(eventName => {
-                const isRelay = eventName.includes('4*') || eventName.includes('4x');
+                const cleanEventName = eventName.replace(/\s+/g, '').toLowerCase();
+                const isRelay = cleanEventName.includes('4*') || cleanEventName.includes('4x');
                 const starterLimit = isRelay ? 4 : 2;
-                // ในหน้านี้เราดึงคนที่เป็นตัวจริงมาโชว์ (เรียงตามระยะทาง)
                 const starters = [...eventData[eventName]].sort((a, b) => b.distance - a.distance).slice(0, starterLimit);
 
                 let runnersCards = starters.map((runner) => `
                     <div class="bg-white border-2 border-black p-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center text-center">
-                        <div class="w-10 h-10 border border-black bg-gray-100 rounded-full mb-2 overflow-hidden flex items-center justify-center">
-                            <img src="${runner.img}" alt="${runner.name}" class="w-full h-full object-cover" />
+                        <div class="w-10 h-10 border border-black bg-gray-100 rounded-full mb-2 overflow-hidden flex items-center justify-center shrink-0">
+                            <img src="${runner.img}" alt="${runner.name}" class="w-full h-full object-cover" onerror="this.src='https://api.dicebear.com/7.x/pixel-art/svg?seed=fallback'">
                         </div>
                         <p class="font-bold">${runner.name}</p>
                         <p class="text-[10px] text-gray-500 font-mono">${runner.distance} km</p>
@@ -534,7 +516,7 @@
                 `).join('');
 
                 return `
-                <div class="border-4 border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-0 overflow-hidden">
+                <div class="border-4 border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-0 overflow-hidden mb-6">
                     <div class="bg-black text-white p-3 flex justify-between items-center">
                         <h3 class="font-bold text-lg">${eventName}</h3>
                         <span class="text-xs bg-yellow-400 text-black px-2 py-1 font-bold">โควต้า: ${starterLimit} คน</span>
@@ -547,8 +529,8 @@
             }).join('');
 
             return `
-                <div class="space-y-6">
-                    <div class="bg-yellow-400 p-4 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+                <div class="space-y-2">
+                    <div class="bg-yellow-400 p-4 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] mb-6">
                         <h2 class="font-black text-xl text-center uppercase tracking-wider">รายการแข่งขัน</h2>
                         <p class="text-center text-sm font-medium mt-1">รายชื่อเฉพาะ "ตัวจริง" ในแต่ละรายการ</p>
                     </div>
@@ -558,26 +540,147 @@
         }
 
         function renderProfile() {
-            return `
-                <div class="h-[60vh] flex flex-col items-center justify-center text-center">
-                    <div class="animate-bounce">
-                        <i data-lucide="alert-circle" class="w-16 h-16 text-yellow-500 mb-4 mx-auto"></i>
+            if (currentUser) {
+                // ประวัติการวิ่ง
+                const history = currentUser.runHistory || [];
+                let historyHtml = '';
+                
+                if (history.length === 0) {
+                    historyHtml = '<p class="text-sm text-gray-500 py-4 font-bold text-center">ยังไม่มีประวัติการส่งวิ่ง</p>';
+                } else {
+                    const reversedHistory = [...history].reverse();
+                    historyHtml = reversedHistory.map((run, idx) => `
+                        <div class="flex items-center justify-between border-2 border-black p-2 mb-2 bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-left">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 border-2 border-black bg-gray-100 overflow-hidden shrink-0 cursor-pointer active:scale-95 transition-transform" onclick="window.open('${run.img}', '_blank')" title="คลิกเพื่อดูรูปเต็ม">
+                                    <img src="${run.img}" class="w-full h-full object-cover" onerror="this.src='https://api.dicebear.com/7.x/pixel-art/svg?seed=fallback'">
+                                </div>
+                                <div>
+                                    <p class="font-bold text-sm leading-tight">${run.date}</p>
+                                    <p class="text-[11px] text-gray-500 font-mono mt-0.5">ระยะทาง: <span class="font-black text-black text-xs">${run.distance} km</span></p>
+                                </div>
+                            </div>
+                            <div class="text-gray-400 font-black px-2 text-xs">
+                                #${history.length - idx}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                return `
+                <div class="space-y-6 animate-in fade-in duration-300">
+                    <div class="border-4 border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-0 overflow-hidden">
+                        <div class="bg-yellow-400 p-4 border-b-4 border-black text-center">
+                            <h2 class="font-black text-xl uppercase tracking-wider">โปรไฟล์ของฉัน</h2>
+                        </div>
+                        <div class="p-6 flex flex-col items-center text-center relative">
+                            <div class="w-24 h-24 border-4 border-black bg-gray-100 overflow-hidden mb-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                                <img src="${currentUser.img}" class="w-full h-full object-cover" onerror="this.src='https://api.dicebear.com/7.x/pixel-art/svg?seed=fallback'">
+                            </div>
+                            <h3 class="text-2xl font-black">${currentUser.name}</h3>
+                            <p class="text-gray-600 font-bold text-sm mb-4">${currentUser.fullname}</p>
+
+                            <div class="w-full grid grid-cols-2 gap-3 mb-6 text-left">
+                                <div class="border-2 border-black bg-gray-50 p-2">
+                                    <p class="text-[10px] text-gray-500 font-bold uppercase">ชั้นเรียน</p>
+                                    <p class="font-black">${currentUser.grade}</p>
+                                </div>
+                                <div class="border-2 border-black bg-gray-50 p-2">
+                                    <p class="text-[10px] text-gray-500 font-bold uppercase">รายการแข่ง</p>
+                                    <p class="font-black text-[12px] leading-tight mt-1">${currentUser.event}</p>
+                                </div>
+                                <div class="border-2 border-black bg-yellow-100 p-2">
+                                    <p class="text-[10px] text-gray-500 font-bold uppercase">ระยะทางรวม</p>
+                                    <p class="font-black text-lg">${parseFloat(currentUser.distance.toFixed(1))} km</p>
+                                </div>
+                                <div class="border-2 border-black bg-green-100 p-2">
+                                    <p class="text-[10px] text-gray-500 font-bold uppercase">เข้าซ้อม</p>
+                                    <p class="font-black text-lg">${currentUser.practiceCount} วัน</p>
+                                </div>
+                            </div>
+
+                            <a href="https://forms.gle/jiZr7uw33H4DZPte7" target="_blank" class="w-full flex justify-center items-center gap-2 bg-black text-yellow-400 font-black py-3 border-4 border-black shadow-[4px_4px_0px_0px_rgba(253,224,71,1)] hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all active:scale-95 mb-4 text-lg">
+                                <i data-lucide="send" class="w-5 h-5"></i> ส่งวิ่ง (อัปเดตระยะ)
+                            </a>
+
+                            <button onclick="handleLogout()" class="px-6 py-2 bg-red-500 text-white font-bold border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all">
+                                ออกจากระบบ
+                            </button>
+                        </div>
                     </div>
-                    <h2 class="text-2xl font-black mb-2">COMING SOON</h2>
-                    <p class="text-gray-600 font-medium">ระบบโปรไฟล์กำลังอยู่ในช่วงการพัฒนา<br/>รอกันอีกนิดนะวัยรุ่น!</p>
-                    <button onclick="navigate('home')" class="mt-8 px-6 py-2 bg-black text-white font-bold border-4 border-black shadow-[4px_4px_0px_0px_rgba(253,224,71,1)] hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all">
-                        กลับหน้าแรก
-                    </button>
+
+                    <!-- ประวัติการวิ่ง (Log) -->
+                    <div class="border-4 border-black bg-gray-50 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-0 overflow-hidden mb-6">
+                        <div class="bg-white text-black p-3 border-b-4 border-black flex items-center justify-between">
+                            <h3 class="font-black text-lg flex items-center gap-2"><i data-lucide="history" class="w-5 h-5 text-yellow-500"></i> ประวัติการวิ่ง</h3>
+                            <span class="text-xs font-bold text-gray-500">${history.length} รายการ</span>
+                        </div>
+                        <div class="p-4 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
+                            ${historyHtml}
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+
+            return `
+                <div class="animate-in fade-in duration-300 mt-4">
+                    <div class="border-4 border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-6 max-w-sm mx-auto">
+                        <div class="flex justify-center mb-4">
+                            <i data-lucide="user-circle" class="w-16 h-16 text-yellow-500"></i>
+                        </div>
+                        <h2 class="text-2xl font-black text-center mb-6 uppercase tracking-wide">เข้าสู่ระบบ</h2>
+                        
+                        <div id="login-error" class="hidden bg-red-100 text-red-600 p-2 mb-4 border-2 border-red-500 font-bold text-sm text-center"></div>
+                        
+                        <div class="space-y-4 text-left">
+                            <div>
+                                <label class="block font-bold text-sm mb-1">ID (รหัสประจำตัว_ห้อง)</label>
+                                <input type="text" id="login-id" placeholder="เช่น 25521_2/1" class="w-full border-2 border-black p-2 font-mono outline-none focus:bg-yellow-100 transition-colors">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-sm mb-1">Password (รหัสประจำตัว)</label>
+                                <input type="password" id="login-pass" placeholder="เช่น 25521" class="w-full border-2 border-black p-2 font-mono outline-none focus:bg-yellow-100 transition-colors">
+                            </div>
+                            <button onclick="handleLogin()" class="w-full bg-black text-white font-black py-3 border-4 border-black shadow-[4px_4px_0px_0px_rgba(253,224,71,1)] hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all active:scale-95 mt-2">
+                                LOG IN
+                            </button>
+                        </div>
+                    </div>
                 </div>
             `;
         }
 
-        // --- ทำงานเมื่อโหลดหน้าเว็บเสร็จ ---
+        function handleLogin() {
+            const idInput = document.getElementById('login-id').value.trim();
+            const passInput = document.getElementById('login-pass').value.trim();
+            const errorDiv = document.getElementById('login-error');
+
+            if (!idInput || !passInput) {
+                errorDiv.innerText = "กรุณากรอกข้อมูลให้ครบถ้วน";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            const foundUser = members.find(m => m.loginId === idInput && m.password === passInput);
+
+            if (foundUser) {
+                currentUser = foundUser;
+                safeRenderApp();
+            } else {
+                errorDiv.innerText = "ID หรือ Password ไม่ถูกต้อง!";
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            safeRenderApp();
+        }
+
         renderNav();
         if (window.lucide) lucide.createIcons();
-        
-        // เริ่มดึงข้อมูล 2 ชีตพร้อมกันทันที
-        loadAthletesData();
+        loadAthletesData(); // โหลดข้อมูลตอนเปิดหน้าเว็บครั้งแรก
 
     </script>
 </body>
